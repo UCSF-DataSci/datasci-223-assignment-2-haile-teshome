@@ -1,43 +1,51 @@
-import pandas as pd
-import numpy as np
+import polars as pl
 
-# Source small dataset URL (synthetic diabetes data from UCI or similar)
-SOURCE_URL = "https://raw.githubusercontent.com/plotly/datasets/master/diabetes.csv"
+def analyze_patient_cohorts(input_file: str) -> pl.DataFrame:
+    """
+    Analyze patient cohorts based on BMI ranges.
+    
+    Args:
+        input_file: Path to the input CSV file
+        
+    Returns:
+        DataFrame containing cohort analysis results with columns:
+        - bmi_range: The BMI range (e.g., "Underweight", "Normal", "Overweight", "Obese")
+        - avg_glucose: Mean glucose level by BMI range
+        - patient_count: Number of patients by BMI range
+        - avg_age: Mean age by BMI range
+    """
+    # Convert CSV to Parquet for efficient processing
+    pl.read_csv(input_file).write_parquet("patients_large.parquet", compression="zstd")
 
-# Number of rows to generate
-TARGET_ROWS = 5_000_000
+    # Analyze cohorts using Polars' lazy API and streaming execution
+    cohort_results = (
+        pl.scan_parquet("patients_large.parquet")
+        .filter((pl.col("BMI") >= 10) & (pl.col("BMI") <= 60))
+        .with_columns([
+            pl.col("BMI").cut(
+                breaks=[10, 18.5, 25, 30, 60],
+                labels=["Underweight", "Normal", "Overweight", "Obese"],
+                left_closed=True
+            ).alias("bmi_range")
+        ])
+        .groupby("bmi_range")
+        .agg([
+            pl.col("Glucose").mean().alias("avg_glucose"),
+            pl.count().alias("patient_count"),
+            pl.col("Age").mean().alias("avg_age")
+        ])
+        .sort("bmi_range")
+        .collect(streaming=True)
+    )
 
-# Output file
-OUTPUT_CSV = "patients_large.csv"
+    return cohort_results
 
 def main():
-    print("Loading source data...")
-    df = pd.read_csv(SOURCE_URL)
-    original_len = len(df)
-    print(f"Original rows: {original_len}")
+    input_file = "patients_large.csv"
+    results = analyze_patient_cohorts(input_file)
 
-    reps = TARGET_ROWS // original_len + 1
-    print(f"Replicating data {reps} times...")
-
-    big_df = pd.concat([df] * reps, ignore_index=True)
-    big_df = big_df.head(TARGET_ROWS)
-
-    # Add some noise to age and glucose to avoid exact duplicates
-    np.random.seed(42)
-    big_df['Age'] = big_df['Age'] + np.random.randint(-5, 6, size=TARGET_ROWS)
-    big_df['Glucose'] = big_df['Glucose'] + np.random.randint(-10, 11, size=TARGET_ROWS)
-
-    # Clip to realistic ranges
-    big_df['Age'] = big_df['Age'].clip(lower=0, upper=120)
-    big_df['Glucose'] = big_df['Glucose'].clip(lower=0)
-
-    # Add a fake diagnosis column
-    diagnoses = ['Diabetes', 'Pre-diabetes', 'No Diabetes']
-    big_df['diagnosis'] = np.random.choice(diagnoses, size=TARGET_ROWS, p=[0.3, 0.2, 0.5])
-
-    print(f"Saving {TARGET_ROWS} rows to {OUTPUT_CSV}...")
-    big_df.to_csv(OUTPUT_CSV, index=False)
-    print("Done.")
+    print("\nCohort Analysis Summary:")
+    print(results)
 
 if __name__ == "__main__":
     main()
