@@ -18,19 +18,16 @@ def analyze_patient_cohorts(input_file: str) -> pl.DataFrame:
     if not os.path.exists(input_file):
         raise FileNotFoundError(f"{input_file} not found. Please run generate_large_health_data.py first.")
 
-    # Convert CSV to Parquet for efficient processing
     pl.read_csv(input_file).write_parquet("patients_large.parquet", compression="zstd")
 
-    # Define breaks and labels
-    breaks = [10, 18.5, 25, 30, 60]
-    labels = ["Underweight", "Normal", "Overweight", "Obese"]
-
-    # Analyze cohorts using Polars' lazy API
     cohort_results = (
         pl.scan_parquet("patients_large.parquet")
         .filter((pl.col("BMI") >= 10) & (pl.col("BMI") <= 60))
         .with_columns([
-            pl.col("BMI").cut(breaks=breaks, labels=labels).alias("bmi_range")
+            pl.col("BMI").cut(
+                [10, 18.5, 25, 30, 60], 
+                ["Underweight", "Normal", "Overweight", "Obese"]  
+            ).alias("bmi_range")
         ])
         .group_by("bmi_range")
         .agg([
@@ -39,7 +36,7 @@ def analyze_patient_cohorts(input_file: str) -> pl.DataFrame:
             pl.col("Age").mean().alias("avg_age")
         ])
         .sort("bmi_range")
-        .collect() 
+        .collect()
     )
 
     return cohort_results
@@ -53,5 +50,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
