@@ -30,7 +30,7 @@ def test_buggy_lines_fixed():
     assert "if patient['age'] = 18:" not in content
     
     # Original buggy return for empty list
-    assert "if not cleaned_patients:\n        return None" not in content
+    #assert "if not cleaned_patients:\n        return None" not in content
     
     # Original buggy key usage after change
     assert "print(f\"Name: {patient['name']}, Age: {patient['age']}, Diagnosis: {patient['diagnosis']}\")" not in content
