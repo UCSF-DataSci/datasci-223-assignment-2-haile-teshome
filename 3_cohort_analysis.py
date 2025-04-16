@@ -53,7 +53,7 @@ def main():
     input_file = "patients_large.csv"
     results = analyze_patient_cohorts(input_file)
 
-    print("\nCohort Analysis Summary:")
+    print("\nCohort Analysis Results:")
     print(results)
 
 if __name__ == "__main__":
