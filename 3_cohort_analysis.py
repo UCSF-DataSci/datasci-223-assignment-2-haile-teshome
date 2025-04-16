@@ -25,8 +25,8 @@ def analyze_patient_cohorts(input_file: str) -> pl.DataFrame:
         .filter((pl.col("BMI") >= 10) & (pl.col("BMI") <= 60))
         .with_columns([
             pl.col("BMI").cut(
-                [10, 18.5, 25, 30, 60], 
-                ["Underweight", "Normal", "Overweight", "Obese"]  
+                breaks=[10, 18.5, 25, 30, 60],
+                labels=["Underweight", "Normal", "Overweight", "Obese"]
             ).alias("bmi_range")
         ])
         .group_by("bmi_range")
