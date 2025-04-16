@@ -3,10 +3,10 @@ import polars as pl
 def analyze_patient_cohorts(input_file: str) -> pl.DataFrame:
     """
     Analyze patient cohorts based on BMI ranges.
-    
+
     Args:
         input_file: Path to the input CSV file
-        
+
     Returns:
         DataFrame containing cohort analysis results with columns:
         - bmi_range: The BMI range (e.g., "Underweight", "Normal", "Overweight", "Obese")
@@ -14,43 +14,54 @@ def analyze_patient_cohorts(input_file: str) -> pl.DataFrame:
         - patient_count: Number of patients by BMI range
         - avg_age: Mean age by BMI range
     """
-    
-    # Create a lazy query to analyze cohorts
-    cohort_results = pl.scan_csv(input_file).pipe(
-        lambda df: df.filter((pl.col("BMI") >= 10) & (pl.col("BMI") <= 60))
-    ).pipe(
-        lambda df: df.with_columns([
-            pl.col("BMI").cut(
-                breaks=[10, 18.5, 25, 30, 60],
-                labels=["Underweight", "Normal", "Overweight", "Obese"],
-                left_closed=True
-            ).alias("bmi_range"),
+
+    # Step 1: Convert CSV to Parquet
+    pl.read_csv(input_file).write_parquet("patients_large.parquet")
+
+    # Step 2: Lazy pipeline from Parquet
+    breaks = [10, 18.5, 25, 30, 60]
+    bin_labels = ["Underweight", "Normal", "Overweight", "Obese"]
+
+    lazy_result = (
+        pl.scan_parquet("patients_large.parquet")
+        .filter((pl.col("BMI") >= 10) & (pl.col("BMI") <= 60))
+        .with_columns([
+            pl.col("BMI").cut(breaks=breaks, left_closed=True).alias("bmi_bin"),
             pl.when(pl.col("Outcome") == 1)
               .then("Diabetic")
               .otherwise("Non-Diabetic")
               .alias("diagnosis")
-    ]).pipe(
-        lambda df: df.group_by(["bmi_range", "diagnosis"]).agg([
+        ])
+        .group_by(["bmi_bin", "diagnosis"])
+        .agg([
             pl.col("Glucose").mean().alias("avg_glucose"),
-            pl.count().alias("patient_count"),
+            pl.len().alias("patient_count"),
             pl.col("Age").mean().alias("avg_age")
         ])
-    ).collect()
+        .collect(streaming=True)  # enable streaming for big data
     )
-    
-    return cohort_results
+
+    # Step 3: Replace numeric bin with labels
+    result = lazy_result.with_columns([
+        pl.when(pl.col("bmi_bin") == 0).then(bin_labels[0])
+        .when(pl.col("bmi_bin") == 1).then(bin_labels[1])
+        .when(pl.col("bmi_bin") == 2).then(bin_labels[2])
+        .when(pl.col("bmi_bin") == 3).then(bin_labels[3])
+        .otherwise("Unknown")
+        .alias("bmi_range")
+    ]).drop("bmi_bin")
+
+    return result
 
 def main():
-    # Input file
     input_file = "patients_large.csv"
-    
-    # Run analysis
     results = analyze_patient_cohorts(input_file)
-    
-    # Print summary statistics
+
     print("\nCohort Analysis Summary:")
     print(results)
+
+    # Save results
     results.write_csv("cohort_analysis_summary.csv")
 
 if __name__ == "__main__":
-    main() 
+    main()
