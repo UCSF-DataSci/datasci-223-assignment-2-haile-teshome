@@ -36,6 +36,7 @@ def analyze_patient_cohorts(input_file: str) -> pl.DataFrame:
             pl.col("Age").mean().alias("avg_age")
         ])
     ).collect()
+    )
     
     return cohort_results
 
