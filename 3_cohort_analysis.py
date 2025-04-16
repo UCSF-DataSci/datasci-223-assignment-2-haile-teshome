@@ -30,7 +30,7 @@ def analyze_patient_cohorts(input_file: str) -> pl.DataFrame:
                 left_closed=True
             ).alias("bmi_range")
         ])
-        .groupby("bmi_range")
+        .group_by("bmi_range")
         .agg([
             pl.col("Glucose").mean().alias("avg_glucose"),
             pl.count().alias("patient_count"),
