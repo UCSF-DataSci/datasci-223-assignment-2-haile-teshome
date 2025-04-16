@@ -1,5 +1,5 @@
 import polars as pl
-import os
+import os  
 
 def analyze_patient_cohorts(input_file: str) -> pl.DataFrame:
     """
@@ -16,7 +16,7 @@ def analyze_patient_cohorts(input_file: str) -> pl.DataFrame:
         - avg_age: Mean age by BMI range
     """
     if not os.path.exists(input_file):
-        raise FileNotFoundError(f"{input_file} not found. Please generate it first.")
+        raise FileNotFoundError(f"{input_file} not found. Please run generate_large_health_data.py first.")
 
     pl.read_csv(input_file).write_parquet("patients_large.parquet", compression="zstd")
 
@@ -42,15 +42,14 @@ def analyze_patient_cohorts(input_file: str) -> pl.DataFrame:
 
     return cohort_results
 
-
 def main():
     input_file = "patients_large.csv"
     results = analyze_patient_cohorts(input_file)
 
     print("\nCohort Analysis Summary:")
     print(results)
-    results.write_csv("cohort_analysis_summary.csv")
 
 if __name__ == "__main__":
     main()
+
 
